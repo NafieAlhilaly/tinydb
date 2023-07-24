@@ -106,19 +106,26 @@ class JSONStorage(Storage):
                 'Using an `access_mode` other than \'r\', \'rb\', \'r+\' '
                 'or \'rb+\' can cause data loss or corruption'
             )
+        
+        self._handle = None
+        self.path = path
+        self.create_dirs = create_dirs
+        self.encoding = encoding
 
-        # Create the file if it doesn't exist and creating is allowed by the
-        # access mode
-        if any([character in self._mode for character in ('+', 'w', 'a')]):  # any of the writing modes
-            touch(path, create_dirs=create_dirs)
-
-        # Open the file for reading/writing
-        self._handle = open(path, mode=self._mode, encoding=encoding)
+        # if the file already exists, attach it to the handler
+        if os.path.exists(self.path):
+            self._handle = open(self.path, mode=self._mode, encoding=self.encoding)
 
     def close(self) -> None:
+        if self._handle is None:
+            return None
         self._handle.close()
 
     def read(self) -> Optional[Dict[str, Dict[str, Any]]]:
+        # Check if a there is a file opened for this storage to read from
+        if self._handle is None:
+            return None
+        
         # Get the file size by moving the cursor to the file end and reading
         # its location
         self._handle.seek(0, os.SEEK_END)
@@ -136,6 +143,14 @@ class JSONStorage(Storage):
             return json.load(self._handle)
 
     def write(self, data: Dict[str, Dict[str, Any]]):
+        # Create the file if it doesn't exist and creating is allowed by the
+        # access mode
+        if any([character in self._mode for character in ('+', 'w', 'a')]):  # any of the writing modes
+            touch(self.path, create_dirs=self.create_dirs)
+
+        # Open the file for reading/writing
+        self._handle = open(self.path, mode=self._mode, encoding=self.encoding)
+
         # Move the cursor to the beginning of the file just in case
         self._handle.seek(0)
 

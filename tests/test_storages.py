@@ -82,8 +82,8 @@ def test_json_readwrite(tmpdir):
 def test_json_read(tmpdir):
     r"""Open a database only for reading"""
     path = str(tmpdir.join('test.db'))
-    with pytest.raises(FileNotFoundError):
-        db = TinyDB(path, storage=JSONStorage, access_mode='r')
+    db = TinyDB(path, storage=JSONStorage, access_mode='r')
+    assert db.storage.read() is None
     # Create small database
     db = TinyDB(path, storage=JSONStorage)
     db.insert({'b': 1})
@@ -108,9 +108,11 @@ def test_create_dirs():
             break
 
     with pytest.raises(IOError):
-        JSONStorage(db_file)
+        JSONStorage(db_file).write(doc)
 
-    JSONStorage(db_file, create_dirs=True).close()
+    storage = JSONStorage(db_file, create_dirs=True)
+    storage.write(doc)
+    storage.close()
     assert os.path.exists(db_file)
 
     # Use create_dirs with already existing directory
@@ -123,8 +125,24 @@ def test_create_dirs():
 
 def test_json_invalid_directory():
     with pytest.raises(IOError):
-        with TinyDB('/this/is/an/invalid/path/db.json', storage=JSONStorage):
+        with TinyDB('/this/is/an/invalid/path/db.json', storage=JSONStorage).insert(doc):
             pass
+
+
+def test_json_created_on_first_insert():
+    """
+    Assert that the database file is only created when inserting data.
+    """
+    os.remove(os.path.join(tempfile.gettempdir(), 'new_db.json'))
+    path = os.path.join(tempfile.gettempdir(), 'new_db.json')
+
+    db = TinyDB(path, storage=JSONStorage)
+    assert not os.path.exists(path)
+
+    db.insert(doc)
+    assert os.path.exists(path)
+
+    db.close()
 
 
 def test_in_memory():
